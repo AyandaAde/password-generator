@@ -90,7 +90,9 @@ export default function PasswordGenerator() {
       await navigator.clipboard.writeText(generatedPassword)
       toast.success("Password copied!", {
         description: "Your password has been copied to the clipboard.",
-      })
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error("Error copying password", error.message);
       toast.error("Copy failed", {

@@ -59,6 +59,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({ password: `${password}${timestampPart}` }, { status: 200 });
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
         console.error("Error creating password", error.message);
         return new NextResponse(error.message, { status: 500 });
