@@ -1,103 +1,185 @@
-import Image from "next/image";
+"use client"
 
-export default function Home() {
+import { useState, useCallback } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { Copy, RefreshCw, Shield, Key, Lock } from "lucide-react"
+import { toast } from "sonner"
+import { useMutation } from "@tanstack/react-query"
+import axios from "axios"
+
+interface PasswordOptions {
+  includeNumbers: boolean
+  includeSymbols: boolean
+  minLength: number
+}
+
+export default function PasswordGenerator() {
+  const [userInput, setUserInput] = useState("")
+  const [generatedPassword, setGeneratedPassword] = useState("")
+  const [passwordStrength, setPasswordStrength] = useState(0)
+  const [strengthLabel, setStrengthLabel] = useState("");
+
+  const calculateStrength = useCallback((password: string) => {
+    if (!password) return { strength: 0, label: "" }
+
+    let score = 0
+    const checks = {
+      length: password.length >= 12,
+      lowercase: /[a-z]/.test(password),
+      uppercase: /[A-Z]/.test(password),
+      numbers: /\d/.test(password),
+      symbols: /[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(password),
+      noRepeats: !/(.)\1{2,}/.test(password),
+    }
+
+    score = Object.values(checks).filter(Boolean).length
+    const percentage = (score / 6) * 100
+
+    let label = ""
+    if (percentage < 40) label = "Weak"
+    else if (percentage < 70) label = "Medium"
+    else label = "Strong"
+
+    return { strength: percentage, label }
+  }, []);
+
+  const generatePassword = useMutation({
+    mutationFn: async (options: PasswordOptions) => {
+      const { data } = await axios.get("/api/generate-code", {
+        params: {
+          text: userInput,
+          ...options
+        }
+      });
+      return data;
+    }
+  })
+
+  const handleGenerate = () => {
+    const options: PasswordOptions = {
+      includeNumbers: true,
+      includeSymbols: true,
+      minLength: 12,
+    }
+
+    generatePassword.mutate(options, {
+      onSuccess: (data) => {
+        setGeneratedPassword(data.password);
+        const { strength, label } = calculateStrength(data.password);
+        setPasswordStrength(strength);
+        setStrengthLabel(label);
+        toast.success("Successfully generated password");
+      },
+      onError: (error) => {
+        console.error("Error generating password", error.message);
+        toast.error("Error generating password.", {
+          description: "Please try again."
+        })
+      }
+    })
+  };
+
+  const copyToClipboard = async () => {
+    if (!generatedPassword) return
+    try {
+      await navigator.clipboard.writeText(generatedPassword)
+      toast.success("Password copied!", {
+        description: "Your password has been copied to the clipboard.",
+      })
+    } catch (error: any) {
+      console.error("Error copying password", error.message);
+      toast.error("Copy failed", {
+        description: "Unable to copy password to clipboard."
+      })
+    }
+  }
+
+  // const getStrengthColor = () => {
+  //   if (passwordStrength < 40) return "bg-destructive"
+  //   if (passwordStrength < 70) return "bg-yellow-500"
+  //   return "bg-primary"
+  // }
+
+  const getStrengthBadgeVariant = () => {
+    if (passwordStrength < 40) return "destructive"
+    if (passwordStrength < 70) return "secondary"
+    return "default"
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+    <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center space-y-2">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Shield className="h-6 w-6 text-primary" />
+            <CardTitle className="text-2xl font-bold">Password Generator</CardTitle>
+          </div>
+          <CardDescription>Transform your text into a secure password</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="user-input" className="flex items-center gap-2">
+              <Key className="h-4 w-4" />
+              Your Text Input
+            </Label>
+            <Input
+              id="user-input"
+              type="text"
+              placeholder="Enter any text to generate a password..."
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              className="bg-input border-border focus:ring-2 focus:ring-ring"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+
+          <Button
+            onClick={handleGenerate}
+            disabled={!userInput.trim()}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
           >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+            <RefreshCw className={`h-4 w-4 mr-2 ${generatePassword.isPending && "animate-spin"}`} />
+            {
+              generatePassword.isPending ? (" Generating Password...") : ("Generate Password")
+            }
+          </Button>
+
+          {generatedPassword && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Generated Password
+                </Label>
+                <div className="flex gap-2">
+                  <Input type="text" value={generatedPassword} readOnly className="font-mono text-sm bg-card" />
+                  <Button onClick={copyToClipboard} size="icon" variant="outline" className="shrink-0 bg-transparent">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Password Strength</Label>
+                  <Badge variant={getStrengthBadgeVariant()}>{strengthLabel}</Badge>
+                </div>
+                <Progress value={passwordStrength} className="h-2" />
+              </div>
+
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>• Password length: {generatedPassword.length} characters</p>
+                <p>• Contains numbers and symbols for enhanced security</p>
+                <p>• Generated from your unique text input</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
-  );
+  )
 }
