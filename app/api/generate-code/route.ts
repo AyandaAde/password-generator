@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
-    const text = searchParams.get("text");
+    let text = searchParams.get("text");
     const includeNumbers = searchParams.get("includeNumbers");
     const includeSymbols = searchParams.get("includeSymbols");
     const minLength = searchParams.get("minLength") || "1";
@@ -11,29 +11,12 @@ export async function GET(req: NextRequest) {
     if (!text) return new NextResponse("Text required", { status: 400 });
 
     try {
-        // Create a hash-like transformation of the input
-        let password = text
-        // Add numbers if requested
-        if (includeNumbers) {
-            const numbers = "0123456789"
-            const numCount = Math.max(2, Math.floor(password.length * 0.2))
-            for (let i = 0; i < numCount; i++) {
-                const randomIndex = Math.floor(Math.random() * password.length)
-                const randomNum = numbers[Math.floor(Math.random() * numbers.length)]
-                password = password.slice(0, randomIndex) + randomNum + password.slice(randomIndex + 1)
-            }
-        }
 
-        // Add symbols if requested
-        if (includeSymbols) {
-            const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?"
-            const symbolCount = Math.max(2, Math.floor(password.length * 0.15))
-            for (let i = 0; i < symbolCount; i++) {
-                const randomIndex = Math.floor(Math.random() * password.length)
-                const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)]
-                password = password.slice(0, randomIndex) + randomSymbol + password.slice(randomIndex + 1)
-            }
-        };
+        text = text.replace(/\s+/g, "");
+
+        let password = text;
+        const numbers = "0123456789";
+        const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
 
         // Simple hash from combined string
         let hash = 0;
@@ -42,6 +25,31 @@ export async function GET(req: NextRequest) {
             hash |= 0; // Convert to 32-bit integer
         };
 
+        // Insert symbols
+        if (includeSymbols) {
+            const symbolCount = Math.max(2, Math.floor(password.length * 0.15))
+            for (let i = 0; i < symbolCount; i++) {
+                const randomIndex = Math.floor(Math.random() * password.length)
+                const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)]
+                password =
+                    password.slice(0, randomIndex) +
+                    randomSymbol +
+                    password.slice(randomIndex)
+            }
+        }
+
+        // Insert numbers
+        if (includeNumbers) {
+            const numCount = Math.max(2, Math.floor(password.length * 0.2))
+            for (let i = 0; i < numCount; i++) {
+                const randomIndex = Math.floor(Math.random() * password.length)
+                const randomNum = numbers[Math.floor(Math.random() * numbers.length)]
+                password =
+                    password.slice(0, randomIndex) +
+                    randomNum +
+                    password.slice(randomIndex)
+            }
+        }
         let i = 0;
 
         // Ensure minimum length
@@ -51,12 +59,9 @@ export async function GET(req: NextRequest) {
             i++;
         }
 
-        // Combine password with current timestamp
-        password = text + Date.now();
-
-        // Shorten timestamp so total length <= 10
-        const timestampPart = Date.now().toString(36).slice(-3); // last 3 chars of base36 timestamp
-
+        // Add short timestamp for uniqueness
+        const timestampPart = Date.now().toString(36).slice(-3)
+        password += timestampPart
         return NextResponse.json({ password: `${password}${timestampPart}` }, { status: 200 });
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
